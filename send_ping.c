@@ -129,7 +129,7 @@ int pack(int pack_no)
 	gettimeofday(tval,NULL);		//记录发送时间
   */
   char *data = (char *)icmp->icmp_data;
-  data = "abcdefg";
+  strcpy(data, "123456");
 	//校验算法
 	icmp->icmp_cksum =  cal_chksum((unsigned short *)icmp,packsize);	
 	return packsize;
