@@ -92,18 +92,9 @@ int unpack(char *buf,int len)
 		printf("ICMP packet\'s length is less than 8\n");
 		return -1;
 	}
-	//确保所接收的是所发的ICMP的回应
-	if((icmp->icmp_type == ICMP_ECHOREPLY) && (icmp->icmp_id == pid))
-	{
-		// tvsend = (struct timeval *)icmp->icmp_data;
-    char *data = (char *)icmp->icmp_data;
-		//显示相关的信息
-		printf("receive info: %s\n", data);
-		// printf("%d bytes from %s: icmp_seq=%u ttl=%d time=%.1f ms\n",
-		//		len,inet_ntoa(from.sin_addr),
-		//		icmp->icmp_seq,ip->ip_ttl,rtt);
-	}
-	else return -1;
+	char *data = (char *)icmp->icmp_data;
+	//显示相关的信息
+	printf("receive info: %s\n", data);
 }
 
 
