@@ -124,8 +124,12 @@ int pack(int pack_no)
 	icmp->icmp_id = pid;
 
 	packsize = 8 + datalen;		//数据报大小为64字节
+  /*
 	tval = (struct timeval *)icmp->icmp_data;
 	gettimeofday(tval,NULL);		//记录发送时间
+  */
+  char *data = (char *)icmp->icmp_data;
+  data = "abcdefg";
 	//校验算法
 	icmp->icmp_cksum =  cal_chksum((unsigned short *)icmp,packsize);	
 	return packsize;

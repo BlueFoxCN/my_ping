@@ -5,6 +5,7 @@
  *	套接字地址数据结构定义在<netinet/in.h>中	*
  ********************************************************/
 
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
@@ -41,114 +42,16 @@ struct sockaddr_in from;
 struct timeval tvrecv;
 pid_t pid;
 
-void statistics(int sig);
-void send_packet(void);
 void recv_packet(void);
 void computer_rtt(void);
-void tv_sub(struct timeval *out,struct timeval *in);
-int pack(int pack_no);
 int unpack(char *buf,int len);
-unsigned short cal_checksum(unsigned short *addr,int len);
-
-/*计算rtt最小、大值，平均值，算术平均数差*/
-void computer_rtt()
-{
-	double sum_avg = 0;
-	int i;
-	min = max = temp_rtt[0];
-	avg = all_time/nreceived;
-
-	for(i=0; i<nreceived; i++){
-		if(temp_rtt[i] < min)
-			min = temp_rtt[i];
-		else if(temp_rtt[i] > max)
-			max = temp_rtt[i];
-
-		if((temp_rtt[i]-avg) < 0)
-			sum_avg += avg - temp_rtt[i];
-		else
-			sum_avg += temp_rtt[i] - avg; 
-		}
-	mdev = sum_avg/nreceived;
-}
 
 /****统计数据函数****/
 void statistics(int sig)
 {
-	computer_rtt();		//计算rtt
-	printf("\n------ %s ping statistics ------\n",addr[0]);
-	printf("%d packets transmitted,%d received,%d%% packet loss,time %.f ms\n",
-		nsend,nreceived,(nsend-nreceived)/nsend*100,all_time);
-	printf("rtt min/avg/max/mdev = %.3f/%.3f/%.3f/%.3f ms\n",
-		min,avg,max,mdev);
 	close(sockfd);
 	exit(1);
 }
-
-/****检验和算法****/
-unsigned short cal_chksum(unsigned short *addr,int len)
-{
-	int nleft = len;
-	int sum = 0;
-	unsigned short *w = addr;
-	unsigned short check_sum = 0;
-
-	while(nleft>1)		//ICMP包头以字（2字节）为单位累加
-	{
-		sum += *w++;
-		nleft -= 2;
-	}
-
-	if(nleft == 1)		//ICMP为奇数字节时，转换最后一个字节，继续累加
-	{
-		*(unsigned char *)(&check_sum) = *(unsigned char *)w;
-		sum += check_sum;
-	}
-	sum = (sum >> 16) + (sum & 0xFFFF);
-	sum += (sum >> 16);
-	check_sum = ~sum;	//取反得到校验和
-	return check_sum;
-}
-
-/*设置ICMP报头*/
-int pack(int pack_no)
-{
-	int i,packsize;
-	struct icmp *icmp;
-	struct timeval *tval;
-	icmp = (struct icmp*)sendpacket;
-	icmp->icmp_type = ICMP_ECHO;	//ICMP_ECHO类型的类型号为0
-	icmp->icmp_code = 0;
-	icmp->icmp_cksum = 0;
-	icmp->icmp_seq = pack_no;	//发送的数据报编号
-	icmp->icmp_id = pid;
-
-	packsize = 8 + datalen;		//数据报大小为64字节
-	tval = (struct timeval *)icmp->icmp_data;
-	gettimeofday(tval,NULL);		//记录发送时间
-	//校验算法
-	icmp->icmp_cksum =  cal_chksum((unsigned short *)icmp,packsize);	
-	return packsize;
-}
-
-/****发送三个ICMP报文****/
-void send_packet()
-{
-	int packetsize;
-	if(nsend < MAX_NO_PACKETS)
-	{
-		nsend++;
-		packetsize = pack(nsend);	//设置ICMP报头
-		//发送数据报
-		if(sendto(sockfd,sendpacket,packetsize,0,
-			(struct sockaddr *)&dest_addr,sizeof(dest_addr)) < 0)
-		{
-			perror("sendto error");
-		}
-	}
-
-}
-
 
 /****接受所有ICMP报文****/
 void recv_packet()
@@ -177,7 +80,6 @@ int unpack(char *buf,int len)
 	int iphdrlen;		//ip头长度
 	struct ip *ip;
 	struct icmp *icmp;
-	struct timeval *tvsend;
 	double rtt;
 
 
@@ -193,34 +95,17 @@ int unpack(char *buf,int len)
 	//确保所接收的是所发的ICMP的回应
 	if((icmp->icmp_type == ICMP_ECHOREPLY) && (icmp->icmp_id == pid))
 	{
-		tvsend = (struct timeval *)icmp->icmp_data;
-		tv_sub(&tvrecv,tvsend);	//接收和发送的时间差
-		//以毫秒为单位计算rtt
-		rtt = tvrecv.tv_sec*1000 + tvrecv.tv_usec/1000;
-		temp_rtt[nreceived] = rtt;
-		all_time += rtt;	//总时间
+		// tvsend = (struct timeval *)icmp->icmp_data;
+    char *data = (char *)icmp->icmp_data;
 		//显示相关的信息
-		printf("%d bytes from %s: icmp_seq=%u ttl=%d time=%.1f ms\n",
-				len,inet_ntoa(from.sin_addr),
-				icmp->icmp_seq,ip->ip_ttl,rtt);
+		printf("receive info: %s\n", data);
+		// printf("%d bytes from %s: icmp_seq=%u ttl=%d time=%.1f ms\n",
+		//		len,inet_ntoa(from.sin_addr),
+		//		icmp->icmp_seq,ip->ip_ttl,rtt);
 	}
 	else return -1;
 }
 
-
-//两个timeval相减
-void tv_sub(struct timeval *recvtime,struct timeval *sendtime)
-{
-	long sec = recvtime->tv_sec - sendtime->tv_sec;
-	long usec = recvtime->tv_usec - sendtime->tv_usec;
-	if(usec >= 0){
-		recvtime->tv_sec = sec;
-		recvtime->tv_usec = usec;
-	}else{
-		recvtime->tv_sec = sec - 1;
-		recvtime->tv_usec = -usec;
-	}
-}
 
 /*主函数*/
 main(int argc,char *argv[])
@@ -228,7 +113,6 @@ main(int argc,char *argv[])
 	struct hostent *host;
 	struct protoent *protocol;
 	unsigned long inaddr = 0;
-//	int waittime = MAX_WAIT_TIME;
 	int size = 50 * 1024;
 	addr[0] = argv[1];
 	//不是ICMP协议
